@@ -11,6 +11,8 @@ class Database:
                                           cursorclass=pymysql.cursors.DictCursor)
         self.cursor = self.connection.cursor()
 
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.connection.close()
 
     def add_product(self, name, price, id):
         try:
@@ -21,6 +23,18 @@ class Database:
         except pymysql.MySQLError as e:
             print(f"Ошибка при добавлении продукта: {e}")
 
+    def get_data(self, start_index, records_per_page):
+        # SQL запрос для извлечения определённого диапазона записей
+        query = "SELECT * FROM data LIMIT %s OFFSET %s;"
+        with self.connection.cursor() as cursor:
+            cursor.execute(query, (records_per_page, start_index))
+            data = cursor.fetchall()
+        return data
 
-    def close(self):
-        self.connection.close()
+    def get_total_records(self):
+        # SQL запрос для получения количества записей в таблице
+        query = "SELECT COUNT(*) FROM data;"
+        with self.connection.cursor() as cursor:
+            cursor.execute(query)
+            total_records = cursor.fetchone()['COUNT(*)']
+        return total_records

@@ -1,29 +1,44 @@
-from parser import WebScraper
 from db import Database
+from config import config
+import streamlit as st
+import pandas as pd
 
-def main():
-    # URL веб-сайта для парсинга
-    url = 'https://catalog.wb.ru/catalog/men_clothes3/v2/catalog?appType=1&cat=129176&curr=rub&dest=-1257786&page=(PAGENUMBER)&sort=popular&spp=30'
+from parser import WebScraper
 
-    # Данные для подключения к базе данных
-    host = '127.0.0.1'
-    user = 'root'
-    password = 'my_secret_password'
-    dbname = 'data_parse'
+# Подключения к базе данных
+db = Database(config.host, config.user, config.password, config.dbname)
+scraper = WebScraper(db)
 
-    # Создание объекта для парсинга веб-сайта
-    scraper = WebScraper(url)
-    data = scraper.get_json_content(20)  # Получение данных с веб-сайта
+# Создание интерфейса Streamlit
+st.title('Парсинг страниц')
+start_number = st.number_input('Начало', value=None, min_value=None, max_value=None, step=1, placeholder="Введите число...", key='start_number')
+end_number = st.number_input('Конец', value=None, min_value=None, max_value=None, step=1,  placeholder="Введите число...", key='end_number')
+st.button('Спарсить', on_click=lambda: scraper.parse(start_number, end_number))
 
-    # Создание объекта для работы с базой данных
-    db = Database(host, user, password, dbname)
+st.subheader('Просмотр данных товаров')
 
-    # Перебор полученных данных и добавление их в базу данных
-    for item in data:  # Предполагаемая структура данных
-        name = item['name']
-        price = item['price']
-        id = item['id']
-        db.add_product(name, price, id)  # Добавление продукта в базу данных
+# Получаем общее количество записей в базе данных
+total_records = db.get_total_records()
 
-if __name__ == '__main__':
-    main()
+# Позволяем пользователю выбрать количество страниц для отображения
+records_per_page = 100
+total_pages = (total_records + records_per_page - 1) // records_per_page
+
+# Выбор страницы пользователем
+current_page = st.number_input('Страница', min_value=1, max_value=None, value=1)
+
+# Получаем данные для текущей страницы
+start_index = (current_page - 1) * records_per_page
+data = db.get_data(start_index, records_per_page)
+# Вывод таблицы с данными
+if data:
+    df = pd.DataFrame(data)
+    df.index = pd.RangeIndex(start=start_index + 1, stop=start_index + len(data) + 1, step=1)
+
+    # Делаем значения в столбце 'price' на два нуля меньше и приводим к целому
+    df['price'] = (df['price'] / 100).astype(int)
+
+    st.table(df)
+else:
+    st.write("Нет данных для отображения.")
+
